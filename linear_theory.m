@@ -1,30 +1,32 @@
 % Linear stability analysis of free bars in dimensionless form
 % Plots Growth rate as a function of (beta, theta0, ds0) 
 
-
 clear; clc;
 close all;
 
+
+% Physical constants
 imma = 1i;
 Delta = 1.65;        % relative sediment density
 por = 0.4;           % porosity
 g = 0.981e1;         % gravitational acceleration 
 r = 0.4e0;           % Ikeda slope parameter
 
+
+% Dimensionless uniform flow parameters -> change these
 ds=0.03;             % base uniform flow 
-theta__o=0.2;        % base uniform flow Shields number
+theta__o=0.10;        % base uniform flow Shields number
 
 
 % uniform transport capacity according to MPM (1947) Phi__o = M * (mu * So + theta__o - vartheta__o) ^ m;
-
 vartheta__o = 0.047; % critical Shields number on horizontal bed
 M=8;                 % MPM coefficient           
 m = 3/2;             % MPM exponent
 mu = 0.1;            % longitudinal slope correction coefficient
 
-
-Ch = 0.6e1 + 0.25e1 * log(0.4000000000e0 / ds);  % Chezy dimensionless
-Cd = 0.1e1 / Ch ^ 2;                             % Drag coefficient
+% uniform transport capacity according to MPM (1947) Phi__o = M * (mu * So + theta__o - vartheta__o) ^ m;
+Ch = 6 + 2.5 * log(0.4/ ds);  % Chezy dimensionless
+Cd = 1/ Ch ^ 2;               % Drag coefficient
 
 %% Computation of uniform flow variables
 So = theta__o * Delta * ds;   % reference dimensionless slopes
@@ -35,7 +37,6 @@ Qo = -sqrt(Delta) * ds ^ (0.3e1 / 0.2e1) * So ^ (-0.1e1 / 0.2e1) / (-0.1e1 + por
 Phi__o = M * (mu * So + theta__o - vartheta__o) ^ m;
 Phi__m = m / (mu * So + theta__o - vartheta__o);
 r1 = r * theta__o ^ (-0.1e1 / 0.2e1);
-
 
 
 % Lateral structure of the perturbation
@@ -50,7 +51,7 @@ c__k = (mu * Phi__m ) * Phi__o * Qo;
 
 
 
-%% Stability analysis
+%% Stability analysis computations
 
 cBK(1,2) = -P ^ 4 * iF ^ 2 * c__0;
 cBK(1,3) = -iF * P ^ 2 * ((P ^ 2 * c__k + 0.2e1 * c__0) * iF - 0.2e1 * c__0);
@@ -115,6 +116,14 @@ OmegaLin = @(k,b) ...
        b.^3 .* k.^2 .* cOd(3,4) + b    .* k.^4 .* cOd(5,2) + b.^3 .* cOd(1,4) + ...
        b    .* k.^2 .* cOd(3,2) );
 
+omegaLin = @(k,beta) ...
+    ( beta.^2 .* k.^5 .* con(6,3) + k.^7 .* con(8,1) + ...
+      beta.^2 .* k.^3 .* con(4,3) + k.^5 .* con(6,1) + ...
+      beta.^2 .* k      .* con(2,3) + k.^3 .* con(4,1) ) ...
+  ./ ( beta.^4 .* k.^2 .* cod(3,5) + beta.^2 .* k.^4 .* cod(5,3) + k.^6 .* cod(7,1) + ...
+       beta.^2 .* k.^2 .* cod(3,3) + k.^4 .* cod(5,1) + beta.^2 .* cod(1,3) + ...
+       k.^2 .* cod(3,1) );
+
 % find the roots of the polynomial
 n_poly = 12; % max degree of the polynomial [note that cBKr(0) = 0]
 coefs_poly = zeros(n_poly+1,1);
@@ -136,31 +145,71 @@ beta0 = beta;
 
 %% ----------------------------- Plotting -----------------------------------
 range_k=linspace(0.001,1,1000);
-range_beta=linspace(1,20,1000);
+range_beta=linspace(1,40,1000);
 
 Om=zeros(100,100);
+om=zeros(100,100);
 
 for i=1:length(range_k)
     for j=1:length(range_beta)
         Om(i,j)=OmegaLin(range_k(1,i),range_beta(1,j));
+        om(i,j)=omegaLin(range_k(1,i),range_beta(1,j));
     end
 end
 
 
+
 figure('Color','w');
-% heatmap-style surface
+tiledlayout(1,2,'Padding','compact','TileSpacing','compact');
+
+% --------- Panel 1: Growth rate Ω(k,β)
+nexttile;
 surf(range_k, range_beta, Om.', 'EdgeColor','none'); % transpose to match axes
 view(0,90);
 colormap parula;
 colorbar;
-xlabel('$k$',Interpreter='latex',FontSize=18,Rotation=0); ylabel('$\beta$',Interpreter='latex',FontSize=18,Rotation=0); title('Growth rate $\Omega(k,\beta)$',Interpreter='latex',FontSize=18);
-zlim([0 1e-3])
-clim([-1e-3 1e-3])
+xlabel('$k$','Interpreter','latex','FontSize',18,'Rotation',0);
+ylabel('$\beta$','Interpreter','latex','FontSize',18,'Rotation',0);
+title('Growth rate $\Omega(k,\beta)$','Interpreter','latex','FontSize',18);
+zlim([0 1e-2]);
+clim([-1e-3 2e-3]);
 hold on;
-% neutral stability curve (Omega=0)
-contour(range_k, range_beta, Om.', [0 0], 'k-', 'LineWidth', 1.2);
-scatter(k,beta,Marker="o")
+contour(range_k, range_beta, Om.', [0 0], 'k-', 'LineWidth', 1.2);   % neutral curve Ω=0
+ax = gca;
+ax.SortMethod = 'childorder';          
+h0 = contour(range_k, range_beta, om.', [0 0], 'k--', 'LineWidth', 1.2); % zero frequency line
 
-grid on;
+scatter(k, beta, 50, 'o', 'filled', 'MarkerEdgeColor','k');
+
+betaRange = [min(range_beta(:)) max(range_beta(:))];
+dy = 0.03 * diff(betaRange);                    % 2% of the beta-range
+y_lab = max(betaRange(1), min(beta - dy, betaRange(2)));  % clamp to axes
+
+txt = sprintf('$k=%.3g$, $\\beta=%.3g$', ...
+              k, beta);
+
+text(k, y_lab, txt, 'Interpreter','latex', 'FontSize',12, ...
+     'HorizontalAlignment','center', 'VerticalAlignment','top', ...
+     'BackgroundColor','w', 'Margin',2, 'Clipping','on');
+
+grid on; box on;
+
+% --------- Panel 2: Frequency ω(k,β)
+nexttile;
+surf(range_k, range_beta, om.', 'EdgeColor','none'); 
+view(0,90);
+colormap parula;
+colorbar;
+xlabel('$k$','Interpreter','latex','FontSize',18,'Rotation',0);
+ylabel('$\beta$','Interpreter','latex','FontSize',18,'Rotation',0);
+title('Frequency $\omega(k,\beta)$','Interpreter','latex','FontSize',18);
+hold on;
+
+ax = gca;
+ax.SortMethod = 'childorder';          
+h0 = contour(range_k, range_beta, Om.', [0 0], 'k--', 'LineWidth', 1.2); % neutral curve Ω=0
+contour(range_k, range_beta, om.', [0 0], 'k-', 'LineWidth', 1.2);   % zero frequency line
+
+grid on; box on;
 
 
